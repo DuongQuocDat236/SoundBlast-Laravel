@@ -10,7 +10,12 @@ use App\Models\LatestAlbum;
 use App\Models\Genre;
 use App\Models\OldSong;
 use App\Models\TopArtist;
-
+use App\Models\Language;
+use App\Models\TopSearchedSong;
+use App\Models\Gallery;
+use App\Http\Controllers\GalleryController;
+use App\Models\Review;
+use App\Http\Controllers\FeedbackController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -40,3 +45,19 @@ Route::get('/old-songs', function () {
 Route::get('/top-artists', function () {
     return TopArtist::all();
 });
+Route::get('/languages', function () {
+    return Language::all();
+});
+Route::get('/top-searched-songs', function () {
+    return TopSearchedSong::all();
+});
+Route::get('/galleries', function () {
+    return Gallery::all();
+});
+Route::get('/galleries', [GalleryController::class, 'index']);
+Route::get('/reviews', function () {
+    return Review::all();
+});
+Route::post('/feedback', [FeedbackController::class, 'store']);
+Route::post('/forgot-password', [AuthController::class, 'sendResetLink']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
