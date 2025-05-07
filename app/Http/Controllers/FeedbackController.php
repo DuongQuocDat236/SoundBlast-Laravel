@@ -10,14 +10,24 @@ class FeedbackController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'    => 'required|string|max:255',
-            'email'   => 'required|email',
-            'subject' => 'required|string|max:255',
-            'message' => 'required|string'
+            'nickname' => 'required|string|max:255',
+            'email' => 'required|email',
+            'gender' => 'nullable|in:male,female,other',
+            'comment' => 'required|string|max:300',
         ]);
+
+        if ($validated['gender'] === '') {
+            $validated['gender'] = null;
+        }
 
         Feedback::create($validated);
 
-        return response()->json(['message' => 'Feedback submitted successfully!'], 201);
+        return response()->json(['message' => 'Feedback submitted successfully'], 201);
+    }
+
+    public function index()
+    {
+        return Feedback::latest()->get();
     }
 }
+
