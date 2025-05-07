@@ -17,6 +17,7 @@ use App\Http\Controllers\GalleryController;
 use App\Models\Review;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\SongController;
+use App\Models\Song;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -64,3 +65,7 @@ Route::post('/feedback', [FeedbackController::class, 'store']);
 Route::post('/forgot-password', [AuthController::class, 'sendResetLink']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/songs/search', [SongController::class, 'search']);
+Route::middleware('auth:sanctum')->get('/download/{id}', function ($id) {
+    $song = \App\Models\Song::findOrFail($id);
+    return response()->download(public_path($song->audio));
+});
