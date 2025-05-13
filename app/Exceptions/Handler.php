@@ -47,4 +47,17 @@ class Handler extends ExceptionHandler
             //
         });
     }
+    public function render($request, Throwable $exception)
+{
+    if ($request->expectsJson()) {
+        return parent::render($request, $exception);
+    }
+
+    // Add fallback if needed
+    return response()->json([
+        'message' => $exception->getMessage(),
+        'trace' => $exception->getTrace(),
+    ], 500);
+}
+
 }

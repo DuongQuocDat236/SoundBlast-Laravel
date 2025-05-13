@@ -2,70 +2,93 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\TrendingNowController;
-use App\Http\Controllers\AuthController;
-use App\Models\TopChart;
-use App\Models\NewRelease;
-use App\Models\LatestAlbum;
-use App\Models\Genre;
-use App\Models\OldSong;
-use App\Models\TopArtist;
-use App\Models\Language;
-use App\Models\TopSearchedSong;
-use App\Models\Gallery;
-use App\Http\Controllers\GalleryController;
-use App\Models\Review;
-use App\Http\Controllers\FeedbackController;
-use App\Http\Controllers\SongController;
-use App\Models\Song;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Response;
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
-Route::get('/trending', [TrendingNowController::class, 'index']);
+// 📦 Models
+use App\Models\{
+    Song, TopChart, NewRelease, LatestAlbum,
+    Genre, OldSong, TopArtist, Language,
+    TopSearchedSong, Gallery, Review
+};
+
+// 🔧 Controllers
+use App\Http\Controllers\{
+    TrendingNowController, AuthController, GalleryController,
+    FeedbackController, SongController, OldSongController
+};
+
+//
+// 🔐 AUTHENTICATION
+//
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
+Route::middleware('auth:sanctum')->get('/user', fn(Request $request) => $request->user());
 Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
-Route::get('/top-charts', function () {
-    return TopChart::all();
-});
-Route::get('/new-releases', function () {
-    return NewRelease::all();
-});
-Route::get('/latest-albums', function () {
-    return LatestAlbum::all();
-});
-Route::get('/genres', function () {
-    return Genre::all();
-});
-Route::get('/old-songs', function () {
-    return OldSong::all();
-});
-Route::get('/top-artists', function () {
-    return TopArtist::all();
-});
-Route::get('/languages', function () {
-    return Language::all();
-});
-Route::get('/top-searched-songs', function () {
-    return TopSearchedSong::all();
-});
-Route::get('/galleries', function () {
-    return Gallery::all();
-});
-Route::get('/galleries', [GalleryController::class, 'index']);
-Route::get('/reviews', function () {
-    return Review::all();
-});
-Route::get('/feedback', [FeedbackController::class, 'index']);
-Route::post('/feedback', [FeedbackController::class, 'store']);
 Route::post('/forgot-password', [AuthController::class, 'sendResetLink']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
+//
+// 📦 PUBLIC CONTENT APIs
+//
+Route::get('/trending', [TrendingNowController::class, 'index']);
+Route::get('/top-charts', fn() => TopChart::all());
+Route::get('/new-releases', fn() => NewRelease::all());
+Route::get('/latest-albums', fn() => LatestAlbum::all());
+Route::get('/genres', fn() => Genre::all());
+Route::get('/old-songs', [OldSongController::class, 'index']);
+Route::post('/old-songs', [OldSongController::class, 'store']);
+Route::get('/top-artists', fn() => TopArtist::all());
+Route::get('/languages', fn() => Language::all());
+Route::get('/top-searched-songs', fn() => TopSearchedSong::all());
+Route::get('/galleries', [GalleryController::class, 'index']);
+Route::get('/reviews', fn() => Review::all());
+Route::get('/feedback', [FeedbackController::class, 'index']);
+Route::post('/feedback', [FeedbackController::class, 'store']);
 Route::get('/songs/search', [SongController::class, 'search']);
-Route::middleware('auth:sanctum')->get('/download/{id}', function ($id) {
-    $song = \App\Models\Song::findOrFail($id);
-    return response()->download(public_path($song->audio));
-});
+
+//
+// 🎧 AUDIO STREAMING (supports byte-range + seeking)
+//
+Route::get('/stream-audio/{fullpath}', function ($fullpath) {
+    $filePath = public_path($fullpath);
+
+    if (!File::exists($filePath)) {
+        abort(404, 'File not found');
+    }
+
+    $fileSize = File::size($filePath);
+    $start = 0;
+    $end = $fileSize - 1;
+    $length = $fileSize;
+
+    $headers = [
+        'Content-Type' => 'audio/mpeg',
+        'Accept-Ranges' => 'bytes',
+    ];
+
+    if (isset($_SERVER['HTTP_RANGE'])) {
+        $range = str_replace('bytes=', '', $_SERVER['HTTP_RANGE']);
+        [$rangeStart, $rangeEnd] = explode('-', $range);
+        $start = intval($rangeStart);
+        $end = is_numeric($rangeEnd) ? intval($rangeEnd) : $fileSize - 1;
+        $length = $end - $start + 1;
+
+        $file = fopen($filePath, 'rb');
+        fseek($file, $start);
+
+        return Response::stream(function () use ($file, $length) {
+            echo fread($file, $length);
+            fclose($file);
+        }, 206, array_merge($headers, [
+            'Content-Range' => "bytes $start-$end/$fileSize",
+            'Content-Length' => $length,
+        ]));
+    }
+
+    return Response::stream(function () use ($filePath) {
+        readfile($filePath);
+    }, 200, array_merge($headers, [
+        'Content-Length' => $fileSize,
+    ]));
+})->where('fullpath', '.*');
